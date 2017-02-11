@@ -54,10 +54,10 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         private byte[] processColorArr = null;
 
         //Initialize some global variables
-        private int FrameCounter = 0;
-        private Stopwatch timer = new Stopwatch();
-        private TimeSpan frameTime = new TimeSpan(0,0,0);
-        private TimeSpan procTime = new TimeSpan(0, 0, 0);
+        private int frameCounter;
+        private Stopwatch timer;
+        private TimeSpan frameTime;
+        private TimeSpan procTime;
         private const double GM_PCT = 0.96;
         private const double PROC_CUTOFF = 0.8;
 
@@ -69,11 +69,53 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
         private VideoFileWriter colorWriter = null;
 
+        public void initTimers()
+        {
+            timer = new Stopwatch();
+            frameCounter = 0;
+            frameTime = new TimeSpan(0, 0, 0);
+            procTime = new TimeSpan(0, 0, 0);
+            timer.Start();
+        }
+
+        // Call at top of frame
+        public void addTotalTime()
+        {
+            frameTime = frameTime.Add(timer.Elapsed);
+            timer.Restart();
+        }
+        public void incrementFrames()
+        {
+            frameCounter++;
+        }
+        // call at end of frame
+        public void addProcTime()
+        {
+            procTime = procTime.Add(timer.Elapsed);
+        }
+        public double getFPS()
+        {
+            double tm = frameTime.TotalSeconds;
+            if (tm < 1e-5)
+                return 0;
+            else
+                return frameCounter / tm;
+        }
+        public bool shouldProcFrame()
+        {
+            if (frameTime.TotalSeconds < 1e-5)
+                return true;
+            else
+                return procTime.TotalSeconds / frameTime.TotalSeconds < PROC_CUTOFF;
+        }
+       
         /// <summary>
         /// Initializes a new instance of the MainWindow class.
         /// </summary>
         public MainWindow()
         {
+            initTimers();
+
             // get the kinectSensor object
             this.kinectSensor = KinectSensor.GetDefault();
 
@@ -155,18 +197,20 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         /// <param name="e">event arguments</param>
         private async void Reader_FrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
         {
-            var reference = e.FrameReference.AcquireFrame();
+            addTotalTime();
 
-            bool depthFrameProcessed = false;
+            var reference = e.FrameReference.AcquireFrame();
+            bool gotDepthFrame = false, gotRGBFrame = false;
+            bool shouldSave = shouldProcFrame();
+
 
             using (DepthFrame depthFrame = reference.DepthFrameReference.AcquireFrame())
             {
                 if (depthFrame != null)
                 {
-                    DepthFrameCounter++;
+                    gotDepthFrame = true;
                     depthFrame.CopyFrameDataToArray(this.depthValues);
                     ProcessDepthFrameData(depthFrame.FrameDescription.LengthInPixels, depthFrame.DepthMinReliableDistance, depthFrame.DepthMaxReliableDistance);
-                    depthFrameProcessed = true;
                 }
             }
 
@@ -174,7 +218,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             {
                 if (frame != null)
                 {
-                    ColorFrameCounter++;
+                    gotRGBFrame = true;
                     if (rgbCheckBox.IsChecked.Value == true)
                     {
                         frame.CopyConvertedFrameDataToArray(this.colorPixels, ColorImageFormat.Bgra);
@@ -187,38 +231,39 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             }
 
             //Draw depth frame
-            if (depthFrameProcessed)
+            if (gotDepthFrame)
             {
                 this.RenderDepthPixels();
             }
 
             //Write frame to binary file at specified fps
-            if (IsRecording && FrameCounter%fps ==0)
+            if (shouldSave && gotDepthFrame && gotRGBFrame)
             {
-                WriteBinFrame();
+                incrementFrames();
+                if(IsRecording)
+                    WriteBinFrame();
             }
 
-            //Calculate level
-            levelAvg += CalculateLevel();
-            //Average frame at fps rate and display every second
-            if (FrameCounter % 30 == 0)
-            {
-                levelAvg /= 30;
-                Degree.Text = levelAvg.ToString("F3");
+            ////Calculate level
+            //levelAvg += CalculateLevel();
+            ////Average frame at fps rate and display every second
+            //if (frameCounter % 30 == 0)
+            //{
+            //    levelAvg /= 30;
+            //    Degree.Text = levelAvg.ToString("F3");
 
-                levelAvg = 0;
-            }
+            //    levelAvg = 0;
+            //}
 
-            string depthTxt = getFpsText(ref DepthFrameCounter, ref depthTimer, "Depth");
-            string colorTxt = getFpsText(ref ColorFrameCounter, ref colorTimer, "RGB");
+            string depthTxt = string.Format("Depth: {0:0.0} fps", getFPS());
+            string colorTxt = "RGB";
             if (depthTxt != null)
                 depthCheckBox.Content = depthTxt;
             if(colorTxt != null)
                 rgbCheckBox.Content = colorTxt;
 
-            
-            //Increase frame counter
-            FrameCounter++;
+
+            addProcTime(); 
         }
         
         private string getFpsText(ref int counter, ref Stopwatch timer, string title)
@@ -380,6 +425,8 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             //If recording
             if (!IsRecording)
             {
+                initTimers();
+
                 ////Check sampling rate and capture mode compatibility
                 ////If sampling is between 0 and 12 Hz, allow both
                 //if (Int32.Parse(SamplingFreqTbox.Text) <= 12 && Int32.Parse(SamplingFreqTbox.Text) > 0)

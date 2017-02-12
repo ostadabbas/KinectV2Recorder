@@ -104,8 +104,6 @@
         <TextBox x:Name="Sub" HorizontalAlignment="Left" Height="28" Margin="536,23.333,0,0" Grid.Row="2" TextWrapping="Wrap" Text="FileName" VerticalAlignment="Top" Width="245" Grid.ColumnSpan="2"/>
         <Label Content="Leveling" HorizontalAlignment="Left" Height="28" Margin="114,0,0,24" Grid.Row="2" VerticalAlignment="Bottom" Width="64" FontWeight="Bold"/>
         <TextBox x:Name="Degree" HorizontalAlignment="Left" Height="23" Margin="117,26,0,0" Grid.Row="2" TextWrapping="Wrap" Text="0" VerticalAlignment="Top" Width="55"/>
-        <TextBox x:Name="SamplingFreqTbox" HorizontalAlignment="Left" TextWrapping="Wrap" Text="10" Width="63" Margin="10,26,0,3.667" Grid.Row="2" TextAlignment="Center"/>
-        <Label x:Name="label" Content="Sampling&#10;Frequency" HorizontalAlignment="Left" Margin="7,0,0,20.667" Grid.Row="1" VerticalAlignment="Bottom" FontWeight="Bold" Grid.RowSpan="2"/>
         <CheckBox x:Name="depthCheckBox" Content="Depth" HorizontalAlignment="Left" Margin="221.667,32.333,0,4.667" Grid.Row="2" Panel.ZIndex="10" Grid.Column="1" IsChecked="True"/>
         <CheckBox x:Name="rgbCheckBox" Content="RGB" Grid.Column="1" HorizontalAlignment="Left" Margin="352.667,33,0,0" Grid.Row="2" VerticalAlignment="Top" IsChecked="True"/>
         <RadioButton x:Name="intRbtn" Content="Internal Save Location" Margin="323,5,113.333,26.667" Grid.Row="2" Panel.ZIndex="2" IsChecked="True"/>

@@ -57,15 +57,15 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         //Initialize some global variables
         private double frameCounter;
         private Stopwatch timer;
+        private Stopwatch recordTimer = new Stopwatch();
         private TimeSpan frameTime;
         private TimeSpan procTime;
         private const double GM_PCT = 0.96;
-        private const double PROC_CUTOFF = 0.9;
+        private const double PROC_CUTOFF = 0.95;
         private int simpleFrameCounter = 0;
 
         private bool IsRecording = false;
         private BinaryWriter writer;
-        private static int fps = 1;
         private bool extAvail = false;
         private double levelAvg = 0;
 
@@ -312,15 +312,8 @@ namespace Microsoft.Samples.Kinect.DepthBasics
                 colorBM = new Bitmap(w, h, fmt);
             }
             bmd = colorBM.LockBits(new Rectangle(0, 0, w, h), System.Drawing.Imaging.ImageLockMode.WriteOnly, fmt);
-            frame.CopyConvertedFrameDataToIntPtr(bmd.Scan0, (uint)(w * h*4), ColorImageFormat.Bgra);
+            frame.CopyConvertedFrameDataToIntPtr(bmd.Scan0, (uint)(w * h * 4), ColorImageFormat.Bgra);
             colorBM.UnlockBits(bmd);
-            //using (MemoryStream outstream = new MemoryStream())
-            //{
-            //    BmpBitmapEncoder enc = new BmpBitmapEncoder();
-            //    enc.Frames.Add(BitmapFrame.Create((BitmapSource)this.colorBitmap));
-            //    enc.Save(outstream);
-            //    bmap = new Bitmap(outstream);
-            //}
         }
 
 
@@ -436,9 +429,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             //If color file box checked
             if (rgbCheckBox.IsChecked.Value == true)
             {
-                colorWriter.WriteVideoFrame(colorBM);
-                ////Write color array as byte array to file
-                //writer.Write(processColorArr);
+                colorWriter.WriteVideoFrame(colorBM,recordTimer.Elapsed);
             }
         }
 
@@ -449,34 +440,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             {
                 initTimers();
 
-                ////Check sampling rate and capture mode compatibility
-                ////If sampling is between 0 and 12 Hz, allow both
-                //if (Int32.Parse(SamplingFreqTbox.Text) <= 12 && Int32.Parse(SamplingFreqTbox.Text) > 0)
-                //{
-                //    depthCheckBox.IsEnabled = true;
-                //    depthCheckBox.IsChecked = true;
-                //    rgbCheckBox.IsEnabled = true;
-                //    rgbCheckBox.IsChecked = true;
-                //}
-                ////If between 12 and 30 Hz, allow only depth
-                //else 
-                if (Int32.Parse(SamplingFreqTbox.Text) <= 30 && Int32.Parse(SamplingFreqTbox.Text) >0)
-                {
-                    depthCheckBox.IsEnabled = true;
-                    //depthCheckBox.IsChecked = true;
-                    rgbCheckBox.IsEnabled = true;
-                    //rgbCheckBox.IsChecked = true;
-                }
-                //If 0 or negative or greater than 30, exception; return null 
-                else
-                {
-                    System.Windows.MessageBox.Show("Check that the sampling frequency is between 1 and 30 Hz");
-                    return;
-                }
-
-                //Determine fps from text box for file append
-                fps = 30 / Int32.Parse(SamplingFreqTbox.Text);
-
+                
                 //Set Directory Path
                 //string myPath = Path.Combine("D:\\Kinect Data");
                 //string myPath = Path.Combine("C:\\Airway_Resistance_2015\\Airway_Data_2015\\Kinect Data");
@@ -501,44 +465,36 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
                 string fname = null;
                 string fname2 = null;
+                writer = null;
+                colorWriter = null;
+
                 //Append depth and color to file name, if depth file checked
-                if (depthCheckBox.IsChecked.Value == true && rgbCheckBox.IsChecked.Value == true)
+                if (depthCheckBox.IsChecked.Value == true)
                 {
-                    fname = String.Format("Kinect_{0}_{1}_{2}Hz_depth.bin", Sub.Text, time, SamplingFreqTbox.Text);
-                    fname2 = String.Format("Kinect_{0}_{1}_{2}Hz_RGB.avi", Sub.Text, time, SamplingFreqTbox.Text);
+                    fname = String.Format("Kinect_{0}_{1}_depth.bin", Sub.Text, time);
+
+                }
+                if (rgbCheckBox.IsChecked.Value == true)
+                {
+                    if (depthCheckBox.IsChecked.Value != true)
+                        fname = string.Format("Kinect_{0}_{1}_ts.bin", Sub.Text, time);
+                    fname2 = String.Format("Kinect_{0}_{1}_rgb.avi", Sub.Text, time);
                     string path_avi = Path.Combine(myPath, fname2);
                     colorWriter = new VideoFileWriter();
                     colorWriter.Open(path_avi, this.colorFrameDescription.Width, this.colorFrameDescription.Height, 30, VideoCodec.MPEG4);
-
+                    recordTimer.Restart();
                 }
-                else
-                {
-                    //Append depth to file name, if depth file checked
-                    if (depthCheckBox.IsChecked.Value == true)
-                    {
-                        fname = String.Format("Kinect_{0}_{1}_{2}Hz_depth.bin", Sub.Text, time, SamplingFreqTbox.Text);
-                    }
-                    //Append color to file name, if color file checked
-                    if (rgbCheckBox.IsChecked.Value == true)
-                    {
-                        fname = String.Format("Kinect_{0}_{1}_{2}Hz_rgb.bin", Sub.Text, time, SamplingFreqTbox.Text);
-                    }
-                }
+                //Create file path, file, and writer
+                string path_bin = Path.Combine(myPath, fname);
+                FileStream SourceStream = File.Open(path_bin, FileMode.OpenOrCreate, FileAccess.Write);
+                writer = new BinaryWriter(SourceStream);
 
                 //Disable choose file type when start recording
                 depthCheckBox.IsEnabled = false;
                 rgbCheckBox.IsEnabled = false;
 
                 //Disable sampling frequency and file name when recording
-                SamplingFreqTbox.IsEnabled = false;
                 Sub.IsEnabled = false;
-
-                
-
-                //Create file path, file, and writer
-                string path_bin= Path.Combine(myPath, fname);
-                FileStream SourceStream = File.Open(path_bin, FileMode.OpenOrCreate, FileAccess.Write);
-                writer = new BinaryWriter(SourceStream);
 
                 //Disable save location radio buttons
                 intRbtn.IsEnabled = false;
@@ -561,7 +517,6 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
                 //Re-enable sampling frequency and file name boxes
                 Sub.IsEnabled = true;
-                SamplingFreqTbox.IsEnabled = true;
 
                 //Enable radio button save locations
                 intRbtn.IsEnabled = true;

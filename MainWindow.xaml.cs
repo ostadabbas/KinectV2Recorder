@@ -44,6 +44,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         /// </summary>
         private WriteableBitmap depthBitmap = null;
         private WriteableBitmap colorBitmap = null;
+        private Bitmap colorBM = null;
 
         /// <summary>
         /// Intermediate storage for frame data
@@ -54,12 +55,13 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         private byte[] processColorArr = null;
 
         //Initialize some global variables
-        private int frameCounter;
+        private double frameCounter;
         private Stopwatch timer;
         private TimeSpan frameTime;
         private TimeSpan procTime;
         private const double GM_PCT = 0.96;
-        private const double PROC_CUTOFF = 0.8;
+        private const double PROC_CUTOFF = 0.9;
+        private int simpleFrameCounter = 0;
 
         private bool IsRecording = false;
         private BinaryWriter writer;
@@ -79,19 +81,28 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         }
 
         // Call at top of frame
+        public void updateTimer(ref TimeSpan ts)
+        {
+            double tmNew = timer.Elapsed.TotalSeconds;
+            double tmOld = ts.TotalSeconds;
+            //ts = TimeSpan.FromSeconds(tmOld + tmNew);
+            ts = TimeSpan.FromSeconds(tmOld * GM_PCT + tmNew /* * (1 - GM_PCT) */);
+
+        }
         public void addTotalTime()
         {
-            frameTime = frameTime.Add(timer.Elapsed);
+            updateTimer(ref frameTime);           
             timer.Restart();
-        }
-        public void incrementFrames()
-        {
-            frameCounter++;
         }
         // call at end of frame
         public void addProcTime()
         {
-            procTime = procTime.Add(timer.Elapsed);
+            updateTimer(ref procTime);
+        }
+        public void addFrames(int frames)
+        {
+            frameCounter = GM_PCT * frameCounter + /*(1 - GM_PCT) * */frames;
+            //frameCounter++;
         }
         public double getFPS()
         {
@@ -103,10 +114,13 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         }
         public bool shouldProcFrame()
         {
-            if (frameTime.TotalSeconds < 1e-5)
-                return true;
-            else
-                return procTime.TotalSeconds / frameTime.TotalSeconds < PROC_CUTOFF;
+            double totalTime = frameTime.TotalSeconds;
+            double pTime = procTime.TotalSeconds;
+            double ratio = 0;
+            if (totalTime > 1e-5)
+                ratio = pTime / totalTime;
+            System.Console.WriteLine(string.Format("{0}, {1}: {2:0.00}", procTime, totalTime, ratio));
+            return ratio < PROC_CUTOFF;
         }
        
         /// <summary>
@@ -139,7 +153,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             // create the bitmap to display
             this.depthBitmap = new WriteableBitmap(this.depthFrameDescription.Width, this.depthFrameDescription.Height, 96.0, 96.0, PixelFormats.Gray8, null);
             this.colorBitmap = new WriteableBitmap(this.colorFrameDescription.Width, this.colorFrameDescription.Height, 96.0, 96.0, PixelFormats.Bgr32, null);
-
+            
             // set IsAvailableChanged event notifier
             this.kinectSensor.IsAvailableChanged += this.Sensor_IsAvailableChanged;
 
@@ -206,7 +220,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
             using (DepthFrame depthFrame = reference.DepthFrameReference.AcquireFrame())
             {
-                if (depthFrame != null)
+                if (depthFrame != null && shouldSave)
                 {
                     gotDepthFrame = true;
                     depthFrame.CopyFrameDataToArray(this.depthValues);
@@ -216,16 +230,12 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
             using (ColorFrame frame = reference.ColorFrameReference.AcquireFrame())
             {
-                if (frame != null)
+                if (frame != null && shouldSave)
                 {
                     gotRGBFrame = true;
                     if (rgbCheckBox.IsChecked.Value == true)
-                    {
-                        frame.CopyConvertedFrameDataToArray(this.colorPixels, ColorImageFormat.Bgra);
-                        processColorArr = ProcessColorArray(this.colorPixels);
-                        await Task.Delay(1); //Delay to allow program to buffer
-                    }
-                    //Draw color frame
+                        makeColorBitmap(frame);
+                    ////Draw color frame
                     createKinectColor(frame);
                 }
             }
@@ -239,29 +249,33 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             //Write frame to binary file at specified fps
             if (shouldSave && gotDepthFrame && gotRGBFrame)
             {
-                incrementFrames();
+                addFrames(1);
                 if(IsRecording)
                     WriteBinFrame();
+            } else
+            {
+                addFrames(0);
             }
 
-            ////Calculate level
-            //levelAvg += CalculateLevel();
-            ////Average frame at fps rate and display every second
-            //if (frameCounter % 30 == 0)
-            //{
-            //    levelAvg /= 30;
-            //    Degree.Text = levelAvg.ToString("F3");
+            if(gotDepthFrame && gotRGBFrame)
+            {
 
-            //    levelAvg = 0;
-            //}
+                depthCheckBox.Content = (bool)depthCheckBox.IsChecked ? string.Format("Depth: {0:0.0} fps", getFPS()) : "Depth";
+                rgbCheckBox.Content = (bool)rgbCheckBox.IsChecked ? string.Format("RGB: {0:0.0 fps}", getFPS()) : "RGB";
 
-            string depthTxt = string.Format("Depth: {0:0.0} fps", getFPS());
-            string colorTxt = "RGB";
-            if (depthTxt != null)
-                depthCheckBox.Content = depthTxt;
-            if(colorTxt != null)
-                rgbCheckBox.Content = colorTxt;
+                simpleFrameCounter++;
+                //Calculate level
+                levelAvg += CalculateLevel();
+                //Average frame at fps rate and display every second
+                if (simpleFrameCounter % 30 == 0)
+                {
+                    levelAvg /= 30;
+                    Degree.Text = levelAvg.ToString("F3");
 
+
+                    levelAvg = 0;
+                }
+            }
 
             addProcTime(); 
         }
@@ -286,10 +300,20 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             return txt;
         }
 
-        private Bitmap getColorBitmap()
+        private void makeColorBitmap(ColorFrame frame)
         {
-            Bitmap bmap = null;
-            bmap = new Bitmap(1920, 1080, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
+            int w = frame.FrameDescription.Width;
+            int h = frame.FrameDescription.Height;
+            System.Drawing.Imaging.PixelFormat fmt = System.Drawing.Imaging.PixelFormat.Format32bppRgb;
+            System.Drawing.Imaging.BitmapData bmd;
+
+            if (colorBM == null)
+            {
+                colorBM = new Bitmap(w, h, fmt);
+            }
+            bmd = colorBM.LockBits(new Rectangle(0, 0, w, h), System.Drawing.Imaging.ImageLockMode.WriteOnly, fmt);
+            frame.CopyConvertedFrameDataToIntPtr(bmd.Scan0, (uint)(w * h*4), ColorImageFormat.Bgra);
+            colorBM.UnlockBits(bmd);
             //using (MemoryStream outstream = new MemoryStream())
             //{
             //    BmpBitmapEncoder enc = new BmpBitmapEncoder();
@@ -297,7 +321,6 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             //    enc.Save(outstream);
             //    bmap = new Bitmap(outstream);
             //}
-            return bmap;
         }
 
 
@@ -413,8 +436,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             //If color file box checked
             if (rgbCheckBox.IsChecked.Value == true)
             {
-                Bitmap bmp = getColorBitmap();
-                //colorWriter.WriteVideoFrame(bmp);
+                colorWriter.WriteVideoFrame(colorBM);
                 ////Write color array as byte array to file
                 //writer.Write(processColorArr);
             }

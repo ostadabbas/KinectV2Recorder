@@ -69,7 +69,6 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         private int simpleFrameCounter = 0;
 
         private bool IsRecording = false;
-        private BinaryWriter writer;
         private GZipStream gzWriter;
         private bool extAvail = false;
         private double levelAvg = 0;
@@ -124,7 +123,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             double ratio = 0;
             if (totalTime > 1e-5)
                 ratio = pTime / totalTime;
-            System.Console.WriteLine(string.Format("{0}, {1}: {2:0.00}", procTime, totalTime, ratio));
+            //System.Console.WriteLine(string.Format("{0}, {1}: {2:0.00}", procTime, totalTime, ratio));
             return ratio < PROC_CUTOFF;
         }
        
@@ -409,8 +408,8 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         private void WriteShort(short val)
         {
             byte[] v = new byte[2];
-            v[0] = (byte)(val & 0xff);
-            v[1] = (byte)((val >> 1) & 0xff);
+            v[0] = (byte)(val & 0xFF);
+            v[1] = (byte)((val >> 8) & 0xFF);
 
             gzWriter.Write(v, 0, 2);
         }
@@ -444,14 +443,14 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
                     // Convert short array to bytes
                     depthValuesBuf[idx * 2] = (byte)(val & 0xFF);
-                    depthValuesBuf[idx * 2 + 1] = (byte)((val >> 1) & 0xFF);
+                    depthValuesBuf[idx * 2 + 1] = (byte)((val >> 8) & 0xFF);
                 }
                 // For the GZStream (the compression stream), it is MUCH, MUCH more efficient to
                 // write many bytes at once than to write a byte at a time. When I was writing a short
                 // at a time, then we could only get 5 fps
                 gzWriter.Write(depthValuesBuf, 0, len);
-                gzWriter.Flush();
             }
+            gzWriter.Flush();
 
 
             //If color file box checked
@@ -493,7 +492,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
                 string fname = null;
                 string fname2 = null;
-                writer = null;
+                gzWriter = null;
                 colorWriter = null;
 
                 //Append depth and color to file name, if depth file checked
@@ -516,7 +515,6 @@ namespace Microsoft.Samples.Kinect.DepthBasics
                 string path_bin = Path.Combine(myPath, fname);
                 FileStream fileStream = File.Open(path_bin, FileMode.OpenOrCreate, FileAccess.Write);
                 gzWriter = new GZipStream(fileStream, CompressionLevel.Fastest);
-                //writer = new BinaryWriter(gzWriter);
                 lastFrame = null;
 
                 //Disable choose file type when start recording

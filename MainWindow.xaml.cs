@@ -9,6 +9,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
     using System;
     using System.Globalization;
     using System.IO;
+    using System.IO.Compression;
     using System.Windows;
     using System.Windows.Media;
     using System.Windows.Media.Imaging;
@@ -17,6 +18,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
     using System.Diagnostics;
     using AForge.Video.FFMPEG;
     using System.Drawing;
+    using System.Linq;
 
     /// <summary>
     /// Interaction logic for MainWindow.xaml
@@ -51,6 +53,8 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         /// </summary>
         private byte[] depthPixels = null;
         private ushort[] depthValues = null;
+        private short[] lastFrame = null;
+        private byte[] depthValuesBuf = null;
         private byte[] colorPixels = null;
         private byte[] processColorArr = null;
 
@@ -66,6 +70,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
         private bool IsRecording = false;
         private BinaryWriter writer;
+        private GZipStream gzWriter;
         private bool extAvail = false;
         private double levelAvg = 0;
 
@@ -401,6 +406,15 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             }
         }
 
+        private void WriteShort(short val)
+        {
+            byte[] v = new byte[2];
+            v[0] = (byte)(val & 0xff);
+            v[1] = (byte)((val >> 1) & 0xff);
+
+            gzWriter.Write(v, 0, 2);
+        }
+
         /// <summary>
         /// Write to binary file
         /// </summary>
@@ -409,20 +423,34 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             //Write time stamp as frame header
             DateTime time_stamp = System.DateTime.Now;
             //string time_stamp = System.DateTime.Now.ToString("hh:mm:ss.fff", CultureInfo.CurrentUICulture.DateTimeFormat);
-            writer.Write((short)time_stamp.Hour);
-            writer.Write((short)time_stamp.Minute);
-            writer.Write((short)time_stamp.Second);
-            writer.Write((short)time_stamp.Millisecond);
+            WriteShort((short)time_stamp.Hour);
+            WriteShort((short)time_stamp.Minute);
+            WriteShort((short)time_stamp.Second);
+            WriteShort((short)time_stamp.Millisecond);
 
-            //If depth file box checked
-            if (depthCheckBox.IsChecked.Value == true)
+            // Write frame
+            if (depthCheckBox.IsChecked.Value)
             {
-                for (int i = 0; i < this.depthPixels.Length; ++i)
+                if (lastFrame == null || lastFrame.Length != depthValues.Length)
+                    lastFrame = Enumerable.Repeat<short>(0, depthValues.Length).ToArray();
+                int len = depthValues.Length * 2;
+                if (depthValuesBuf == null || depthValuesBuf.Length != len)
+                    depthValuesBuf = new byte[len];
+                for (int idx = 0; idx < depthValues.Length; idx++)
                 {
-                    //Write depth for this pixel as ushort to file
-                    ushort depth = depthValues[i];
-                    writer.Write(depth);
+                    // Delta compression
+                    short val = (short)((short)depthValues[idx] - lastFrame[idx]);
+                    lastFrame[idx] = (short)depthValues[idx];
+
+                    // Convert short array to bytes
+                    depthValuesBuf[idx * 2] = (byte)(val & 0xFF);
+                    depthValuesBuf[idx * 2 + 1] = (byte)((val >> 1) & 0xFF);
                 }
+                // For the GZStream (the compression stream), it is MUCH, MUCH more efficient to
+                // write many bytes at once than to write a byte at a time. When I was writing a short
+                // at a time, then we could only get 5 fps
+                gzWriter.Write(depthValuesBuf, 0, len);
+                gzWriter.Flush();
             }
 
 
@@ -471,13 +499,13 @@ namespace Microsoft.Samples.Kinect.DepthBasics
                 //Append depth and color to file name, if depth file checked
                 if (depthCheckBox.IsChecked.Value == true)
                 {
-                    fname = String.Format("Kinect_{0}_{1}_depth.bin", Sub.Text, time);
+                    fname = String.Format("Kinect_{0}_{1}_depth.bin.gz", Sub.Text, time);
 
                 }
                 if (rgbCheckBox.IsChecked.Value == true)
                 {
                     if (depthCheckBox.IsChecked.Value != true)
-                        fname = string.Format("Kinect_{0}_{1}_ts.bin", Sub.Text, time);
+                        fname = string.Format("Kinect_{0}_{1}_ts.bin.gz", Sub.Text, time);
                     fname2 = String.Format("Kinect_{0}_{1}_rgb.avi", Sub.Text, time);
                     string path_avi = Path.Combine(myPath, fname2);
                     colorWriter = new VideoFileWriter();
@@ -486,8 +514,10 @@ namespace Microsoft.Samples.Kinect.DepthBasics
                 }
                 //Create file path, file, and writer
                 string path_bin = Path.Combine(myPath, fname);
-                FileStream SourceStream = File.Open(path_bin, FileMode.OpenOrCreate, FileAccess.Write);
-                writer = new BinaryWriter(SourceStream);
+                FileStream fileStream = File.Open(path_bin, FileMode.OpenOrCreate, FileAccess.Write);
+                gzWriter = new GZipStream(fileStream, CompressionLevel.Fastest);
+                //writer = new BinaryWriter(gzWriter);
+                lastFrame = null;
 
                 //Disable choose file type when start recording
                 depthCheckBox.IsEnabled = false;
@@ -509,7 +539,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             else
             {
                 //Close writer and enable file type boxes
-                writer.Close();
+                gzWriter.Close();
                 if(colorWriter != null)
                     colorWriter.Close();
                 depthCheckBox.IsEnabled = true;

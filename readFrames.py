@@ -19,19 +19,37 @@ def loadFrames(fname):
         data = data.reshape((-1, fLen))
         header = data[:,:headerSize]
         frames = data[:,headerSize:]
-        frames = np.cumsum(frames,axis=0)
         data = []
 
         # convert frames
-        frames = frames.reshape((-1,h,w)).astype(float)
+        frames = np.cumsum(frames,axis=0) # reverse the delta compression
+        frames = frames.reshape((-1,h,w)).astype(float) # convert to floating point
 
-        # convert header
-        plt.imshow(frames[10])
-        plt.show()
+        # convert header: time_s is times in seconds
+        time_s = header.astype(float).dot([60*60, 60, 1, 1e-3])
+
+        return time_s, frames
 
 
-fname = 'input.bin.gz'
-fname = 'Kinect_FileName_2017-2-19-01-06-59_depth.bin.gz'
-fname = 'Kinect_FileName_2017-2-19-01-09-06_depth.bin.gz'
+# Demonstration: feel free to delete this
 fname = 'Kinect_FileName_2017-2-19-03-15-52_depth.bin.gz'
-loadFrames('Kinect Data/' + fname)
+time_s, frames = loadFrames('Kinect Data/' + fname)
+
+fn = 10
+plt.figure('frame {}'.format(fn))
+plt.imshow(frames[fn]) # show frame 10
+
+plt.figure('times')
+time2 = time_s - time_s[0] # time in seconds from start
+plt.title('Times')
+plt.xlabel('frame number')
+plt.ylabel('time (s)')
+plt.plot(time_s)
+
+fps = 1/(time_s[1:] - time_s[:-1])
+plt.figure('fps vs time')
+plt.plot(time2[1:],fps)
+plt.xlabel('time (s)')
+plt.ylabel('fps')
+
+plt.show()

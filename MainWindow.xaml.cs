@@ -74,6 +74,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
         private double levelAvg = 0;
 
         private VideoFileWriter colorWriter = null;
+        private BinaryWriter timeWriter = null;
 
         public void initTimers()
         {
@@ -411,7 +412,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             v[0] = (byte)(val & 0xFF);
             v[1] = (byte)((val >> 8) & 0xFF);
 
-            gzWriter.Write(v, 0, 2);
+            timeWriter.Write(v, 0, 2);
         }
 
         /// <summary>
@@ -465,57 +466,67 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             //If recording
             if (!IsRecording)
             {
-                initTimers();
 
-                
+
                 //Set Directory Path
                 //string myPath = Path.Combine("D:\\Kinect Data");
                 //string myPath = Path.Combine("C:\\Airway_Resistance_2015\\Airway_Data_2015\\Kinect Data");
                 //string myPath = Path.Combine("C:\\Users\\AC lab\\Desktop\\Kinect Apps\\RecorderFinal\\Sample Kinect Data");
-                string myPath = Path.Combine(Directory.GetDirectories(Directory.GetParent(Directory.GetParent(Directory.GetCurrentDirectory()).ToString()).ToString(), "Sample*")[0]);
+                string myPath = "";
 
                 //If internal save location checked, save in project folder
                 if (intRbtn.IsChecked == true)
                 {
                     myPath = Path.Combine(Directory.GetDirectories(Directory.GetParent(Directory.GetParent(Directory.GetCurrentDirectory()).ToString()).ToString(), "Kinect*")[0]);
                 }
-
-                //If external save location checked, save on hard drive
-                if (extRbtn.IsChecked == true)
+                else //If external save location checked, save on hard drive
                 {
                     myPath = Path.Combine("D:\\Kinect Data");
                 }
 
+                // Make sure directory exists
+                if(! Directory.Exists(myPath))
+                {
+                    MessageBox.Show("Recording directory doesn't exist");
+                    return;
+                }
+
+                // Create directory for files
+                string time = System.DateTime.Now.ToString("yyyy'-'MM'-'dd'-'hh'-'mm'-'ss", CultureInfo.CurrentUICulture.DateTimeFormat);
+                myPath = Path.Combine(myPath,String.Format("Kinect_{0}_{1}", Sub.Text, time));
+                Directory.CreateDirectory(myPath);
+
+                initTimers();
+
                 //Format file name
                 //Time
-                string time = System.DateTime.Now.ToString("yyyy'-'M'-'d'-'hh'-'mm'-'ss", CultureInfo.CurrentUICulture.DateTimeFormat);
 
-                string fname = null;
-                string fname2 = null;
                 gzWriter = null;
                 colorWriter = null;
+                timeWriter = null;
+
+                // Create Time Writer
+                string tfname = Path.Combine(myPath, "times.bin");
+                FileStream tfs = File.Open(tfname, FileMode.OpenOrCreate, FileAccess.Write);
+                timeWriter = new BinaryWriter(tfs);
 
                 //Append depth and color to file name, if depth file checked
+                lastFrame = null;
                 if (depthCheckBox.IsChecked.Value == true)
                 {
-                    fname = String.Format("Kinect_{0}_{1}_depth.bin.gz", Sub.Text, time);
-
+                    string fname = Path.Combine(myPath, "depth.bin.gz");
+                    FileStream fileStream = File.Open(fname, FileMode.OpenOrCreate, FileAccess.Write);
+                    gzWriter = new GZipStream(fileStream, CompressionLevel.Fastest);
                 }
+
                 if (rgbCheckBox.IsChecked.Value == true)
                 {
-                    if (depthCheckBox.IsChecked.Value != true)
-                        fname = string.Format("Kinect_{0}_{1}_ts.bin.gz", Sub.Text, time);
-                    fname2 = String.Format("Kinect_{0}_{1}_rgb.avi", Sub.Text, time);
-                    string path_avi = Path.Combine(myPath, fname2);
+                    string fname = Path.Combine(myPath, "rgb.avi");
                     colorWriter = new VideoFileWriter();
-                    colorWriter.Open(path_avi, this.colorFrameDescription.Width, this.colorFrameDescription.Height, 30, VideoCodec.MPEG4);
+                    colorWriter.Open(fname, this.colorFrameDescription.Width, this.colorFrameDescription.Height, 30, VideoCodec.MPEG4);
                     recordTimer.Restart();
                 }
                 //Create file path, file, and writer
-                string path_bin = Path.Combine(myPath, fname);
-                FileStream fileStream = File.Open(path_bin, FileMode.OpenOrCreate, FileAccess.Write);
-                gzWriter = new GZipStream(fileStream, CompressionLevel.Fastest);
-                lastFrame = null;
 
                 //Disable choose file type when start recording
                 depthCheckBox.IsEnabled = false;
@@ -537,9 +548,16 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             else
             {
                 //Close writer and enable file type boxes
-                gzWriter.Close();
+                if(timeWriter != null)
+                    timeWriter.Close();
+                if(gzWriter != null)
+                    gzWriter.Close();
                 if(colorWriter != null)
                     colorWriter.Close();
+                timeWriter = null;
+                gzWriter = null;
+                colorWriter = null;
+
                 depthCheckBox.IsEnabled = true;
                 rgbCheckBox.IsEnabled = true;
 

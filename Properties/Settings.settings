@@ -5,5 +5,8 @@
     <Setting Name="SaveDirectory" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
+    <Setting Name="Filename" Type="System.String" Scope="User">
+      <Value Profile="(Default)">filename</Value>
+    </Setting>
   </Settings>
 </SettingsFile>

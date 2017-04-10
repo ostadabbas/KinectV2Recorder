@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace Microsoft.Samples.Kinect.DepthBasics.Properties {
+namespace Northeastern.aclab.Kinect.Properties {
     
     
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
@@ -32,6 +32,18 @@ namespace Microsoft.Samples.Kinect.DepthBasics.Properties {
             }
             set {
                 this["SaveDirectory"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("filename")]
+        public string Filename {
+            get {
+                return ((string)(this["Filename"]));
+            }
+            set {
+                this["Filename"] = value;
             }
         }
     }

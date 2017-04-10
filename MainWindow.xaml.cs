@@ -4,7 +4,7 @@
 // </copyright>
 //------------------------------------------------------------------------------
 
-namespace Microsoft.Samples.Kinect.DepthBasics
+namespace Northeastern.aclab.Kinect
 {
     using System;
     using System.Globalization;
@@ -179,13 +179,9 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             this.Image.Source = this.depthBitmap;
             this.Image2.Source = this.colorBitmap;
 
-            //Check if external directory exists, enable external save location
-            if (Directory.Exists("D:\\Kinect Data"))
-            {
-                extRbtn.IsEnabled = true;
-                extAvail = true;
-                extRbtn.IsChecked = true;
-            }
+            Sub.Text = (string)Properties.Settings.Default["Filename"];
+            SaveDirectory.Text = (string)Properties.Settings.Default["SaveDirectory"];
+
         }
 
         /// <summary>
@@ -472,17 +468,7 @@ namespace Microsoft.Samples.Kinect.DepthBasics
                 //string myPath = Path.Combine("D:\\Kinect Data");
                 //string myPath = Path.Combine("C:\\Airway_Resistance_2015\\Airway_Data_2015\\Kinect Data");
                 //string myPath = Path.Combine("C:\\Users\\AC lab\\Desktop\\Kinect Apps\\RecorderFinal\\Sample Kinect Data");
-                string myPath = "";
-
-                //If internal save location checked, save in project folder
-                if (intRbtn.IsChecked == true)
-                {
-                    myPath = Path.Combine(Directory.GetDirectories(Directory.GetParent(Directory.GetParent(Directory.GetCurrentDirectory()).ToString()).ToString(), "Kinect*")[0]);
-                }
-                else //If external save location checked, save on hard drive
-                {
-                    myPath = Path.Combine("D:\\Kinect Data");
-                }
+                string myPath = SaveDirectory.Text;
 
                 // Make sure directory exists
                 if(! Directory.Exists(myPath))
@@ -495,6 +481,9 @@ namespace Microsoft.Samples.Kinect.DepthBasics
                 string time = System.DateTime.Now.ToString("yyyy'-'MM'-'dd'-'hh'-'mm'-'ss", CultureInfo.CurrentUICulture.DateTimeFormat);
                 myPath = Path.Combine(myPath,String.Format("Kinect_{0}_{1}", Sub.Text, time));
                 Directory.CreateDirectory(myPath);
+
+                Properties.Settings.Default["Filename"] = Sub.Text;
+                Properties.Settings.Default.Save();
 
                 initTimers();
 
@@ -534,10 +523,8 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
                 //Disable sampling frequency and file name when recording
                 Sub.IsEnabled = false;
+                ChangeDirectory.IsEnabled = false;
 
-                //Disable save location radio buttons
-                intRbtn.IsEnabled = false;
-                extRbtn.IsEnabled = false;
 
                 //Toggle recording
                 IsRecording = !IsRecording;
@@ -563,13 +550,8 @@ namespace Microsoft.Samples.Kinect.DepthBasics
 
                 //Re-enable sampling frequency and file name boxes
                 Sub.IsEnabled = true;
+                ChangeDirectory.IsEnabled = true;
 
-                //Enable radio button save locations
-                intRbtn.IsEnabled = true;
-                if (extAvail == true)
-                {
-                    extRbtn.IsEnabled = true;
-                }
 
                 //Toggle recording
                 IsRecording = !IsRecording;
@@ -692,6 +674,27 @@ namespace Microsoft.Samples.Kinect.DepthBasics
             }
 
             return arrOut;
+        }
+
+        private void ChangeDirectory_Click(object sender, RoutedEventArgs e)
+        {
+            using (var fbd = new System.Windows.Forms.FolderBrowserDialog())
+            {
+                string sdir = (string)Properties.Settings.Default["SaveDirectory"];
+                if(Directory.Exists(sdir))
+                {
+                    fbd.SelectedPath = sdir;
+                }
+                var result = fbd.ShowDialog();
+                if(result == System.Windows.Forms.DialogResult.OK)
+                {
+                    sdir = fbd.SelectedPath;
+                    SaveDirectory.Text = sdir;
+                    Properties.Settings.Default["SaveDirectory"] = sdir;
+                    Properties.Settings.Default.Save();
+                }
+            }
+            
         }
     }
 }

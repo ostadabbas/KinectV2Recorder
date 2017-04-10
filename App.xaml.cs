@@ -4,7 +4,7 @@
 // </copyright>
 //------------------------------------------------------------------------------
 
-namespace Microsoft.Samples.Kinect.DepthBasics
+namespace Northeastern.aclab.Kinect
 {
     using System.Windows;
 

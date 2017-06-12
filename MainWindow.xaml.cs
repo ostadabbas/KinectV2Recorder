@@ -446,8 +446,9 @@ namespace Northeastern.aclab.Kinect
                 // write many bytes at once than to write a byte at a time. When I was writing a short
                 // at a time, then we could only get 5 fps
                 gzWriter.Write(depthValuesBuf, 0, len);
+//                gzWriter.Flush();
             }
-            gzWriter.Flush();
+
 
 
             //If color file box checked

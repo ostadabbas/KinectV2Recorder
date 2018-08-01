@@ -2,6 +2,8 @@ Kinect video playback and record (this is the recorder)
 
 - To compile: you need to get and install the AForge libraries http://www.aforgenet.com/
   - make sure to install AForge Video and AForge Video FFMPEG
+  - once installed make sure to take dll files from Externals/ffmpeg/bin in the installation directory to bin/Debug folder in project directory
+  - if running project to x86 CPU place dll files in bin/x86/Debug
 
 - Playback is with the playback app.
 - also look at the readFrames.py python script in this directory to see how
